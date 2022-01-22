@@ -22,7 +22,7 @@ deang = 180/pi;			 % rad->ang
 N = 8;               % the number of sensor elements
 Nf = 8;
 % K = 1;							 % for single target       
-K = 3;               % the number of targets K = 2 -> K = 1
+K = 2;               % the number of targets K = 2 -> K = 1
 R = K;
 % theta = [-30 0 60];  % the DoA angle of targets
 SNR = 35;            % signal-noise-ratio
@@ -82,16 +82,6 @@ steering_vec = exp(1j*delta_w*(doa_range/c0));
 w0 = 2*pi*f0;
 x_rec = zeros(N,1);
 
-if(K==1)
-	x1 = exp(-1j*w0*range(1)/c0);
-	x_rec = steering_vec*x1;
-else
-	x1 = exp(-1j*delta_fre*range(1)/c0);
-	x2 = exp(-1j*delta_fre*range(2)/c0);
-	x_rec = steering_vec(:,1)*x1 + steering_vec(:,2)*x2;% with the same carrier frequency
-	% x_rec = 0.1*steering_vec(:,1)*x1 + 0.5*steering_vec(:,2)*x2;% with RCS fading
-end
-
 % receive data by time sequence
 fs = 10e9;
 time_window = (Q-1)/fs;
@@ -149,10 +139,19 @@ Y_real = Y_real';
 b1 = zeros(Nf,1);
 b2 = zeros(Nf,1);
 A_mat= zeros(Nf,Nf);
-A_mat_save = zeros(DIS_NUM,DIS_NUM,Nf,Nf);
+A_mat_save_one = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_Nf = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_two = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_three = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_four = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_five = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_six = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_save_seven = zeros(DIS_NUM,DIS_NUM,1,Nf);
+A_mat_gpu = zeros(DIS_NUM * Nf, DIS_NUM * Nf);
+% A_mat_save = zeros(DIS_NUM,Nf,Nf);
 % load A_mat_source.mat;
 tic
-for dis1_i = 1:DIS_NUM
+parfor dis1_i = 1:DIS_NUM
 	dis1 = distance_min + (dis1_i - 1) * distance_resol;
 	% theta1 = 45;
 	b1 = exp(-1j*2*pi*(nn-1)*delta_fre*2*dis1/c0);
@@ -160,38 +159,79 @@ for dis1_i = 1:DIS_NUM
 		dis2 = distance_min + (dis2_i - 1) * distance_resol;
 		% theta2 = 17;
 		b2 = exp(-1j*2*pi*(nn-1)*delta_fre*2*dis2/c0);
-		if(dis1 == dis2) % if two doa_angle is same, coeff_mat is irreversible
-			piquancy_func(dis1_i,dis2_i) = 0;
-        else
-            for ii=1:Nf
-                if(ii==1)
-					coeff_mat = [b1(ii+1:end);b2(ii+1:end)];
-					const_vec = [b1(ii);b2(ii)];
-					solution_vec = pinv(coeff_mat) * const_vec;
-%                     parfor jj = 2:size(solution_vec)+1
-%                         A_mat_save(dis1_i,dis2_i,1,jj) = solution_vec(jj - 1);
-%                     end
-                    A_mat(ii,2:Nf) = solution_vec;
-				elseif(ii==Nf)
-					coeff_mat = [b1(1:Nf-1);b2(1:Nf-1)];
-					const_vec = [b1(ii);b2(ii)];
-					solution_vec = pinv(coeff_mat) * const_vec;
-%                     parfor jj = 1:size(solution_vec)
-%                         A_mat_save(dis1_i,dis2_i,8,jj) = solution_vec(jj);
-%                     end
-					A_mat(ii,1:Nf-1) = solution_vec;
-				else
-					coeff_mat = [b1(1:ii-1),b1(ii+1:end);b2(1:ii-1),b2(ii+1:end)];
-                    const_vec = [b1(ii);b2(ii)];
-                    solution_vec = pinv(coeff_mat) * const_vec;
-%                     parfor jj = 1:size(solution_vec)
-%                         A_mat_save(dis1_i,dis2_i,ii,jj) = solution_vec(jj);
-%                     end
-                    A_mat(ii,1:ii-1) = solution_vec(1:ii-1);
-                    A_mat(ii,ii+1:Nf) = solution_vec(ii:Nf-1);
-				end % end of if ii
-            end % end of for ii
-            A_mat_save(dis1_i, dis2_i, :,:) = A_mat;
+		coeff_mat = [b1(2:end);b2(2:end)];
+        const_vec = [b1(1);b2(1)];
+        solution_vec = pinv(coeff_mat) * const_vec;
+        for jj = 2 : 8
+            A_mat_save_one(dis1_i,dis2_i,1,jj) = solution_vec(jj - 1);
+        end
+
+        coeff_mat_NF = [b1(1:Nf-1);b2(1:Nf-1)];
+        const_vec_Nf = [b1(ii);b2(ii)];
+        solution_vec_Nf = pinv(coeff_mat_NF) * const_vec_Nf;
+        for jj = 1 : 7
+            A_mat_save_Nf(dis1_i,dis2_i,1,jj) = solution_vec_Nf(jj);
+        end
+
+        coeff_mat_two = [b1(1:2-1),b1(2+1:end);b2(1:2-1),b2(2+1:end)];
+        const_vec_two = [b1(2);b2(2)];
+        solution_vec_two = pinv(coeff_mat_two) * const_vec_two;
+        for jj = 1 : 1
+            A_mat_save_two(dis1_i,dis2_i,1,jj) = solution_vec_two(jj);
+        end
+        for jj = 3 : 8
+            A_mat_save_two(dis1_i,dis2_i,1,jj) = solution_vec_two(jj-1);
+        end
+
+        coeff_mat_three = [b1(1:3-1),b1(3+1:end);b2(1:3-1),b2(3+1:end)];
+        const_vec_three = [b1(3);b2(3)];
+        solution_vec_three = pinv(coeff_mat_three) * const_vec_three;
+        for jj = 1 : 2
+            A_mat_save_three(dis1_i,dis2_i,1,jj) = solution_vec_three(jj);
+        end
+        for jj = 4 : 8
+            A_mat_save_three(dis1_i,dis2_i,1,jj) = solution_vec_three(jj-1);
+        end
+
+        coeff_mat_four = [b1(1:4-1),b1(4+1:end);b2(1:4-1),b2(4+1:end)];
+        const_vec_four = [b1(4);b2(4)];
+        solution_vec_four = pinv(coeff_mat_four) * const_vec_four;
+        for jj = 1 : 3
+            A_mat_save_four(dis1_i,dis2_i,1,jj) = solution_vec_four(jj);
+        end
+        for jj = 5 : 8
+            A_mat_save_four(dis1_i,dis2_i,1,jj) = solution_vec_four(jj-1);
+        end
+
+        coeff_mat_five = [b1(1:5-1),b1(5+1:end);b2(1:5-1),b2(5+1:end)];
+        const_vec_five = [b1(5);b2(5)];
+        solution_vec_five = pinv(coeff_mat_five) * const_vec_five;
+        for jj = 1 : 4
+            A_mat_save_five(dis1_i,dis2_i,1,jj) = solution_vec_five(jj);
+        end
+        for jj = 6 : 8
+            A_mat_save_five(dis1_i,dis2_i,1,jj) = solution_vec_five(jj-1);
+        end
+
+        coeff_mat_six = [b1(1:6-1),b1(6+1:end);b2(1:6-1),b2(6+1:end)];
+        const_vec_six = [b1(6);b2(6)];
+        solution_vec_six = pinv(coeff_mat_six) * const_vec_six;
+        for jj = 1 : 5
+            A_mat_save_six(dis1_i,dis2_i,1,jj) = solution_vec_six(jj);
+        end
+        for jj = 7 : 8
+            A_mat_save_six(dis1_i,dis2_i,1,jj) = solution_vec_six(jj-1);
+        end
+
+        coeff_mat_seven = [b1(1:7-1),b1(7+1:end);b2(1:7-1),b2(7+1:end)];
+        const_vec_seven = [b1(7);b2(7)];
+        solution_vec_seven = pinv(coeff_mat_seven) * const_vec_seven;
+        for jj = 1 : 6
+            A_mat_save_seven(dis1_i,dis2_i,1,jj) = solution_vec_seven(jj);
+        end
+        for jj = 8 : 8
+            A_mat_save_seven(dis1_i,dis2_i,1,jj) = solution_vec_seven(jj-1);
+        end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % 			[V,D] = eig(squeeze(A_mat_save(dis1_i,dis2_i,:,:)));
 % 			
@@ -215,12 +255,59 @@ for dis1_i = 1:DIS_NUM
 % 			x_est1_del = x_est1_sort(K+1:end);
 % 	
 % 			piquancy_func(dis1_i,dis2_i) = 1/sum(x_est1_del.^2);
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%			
-		end % end of if theta1==theta2
+	end
+end 
+A_mat_save(:,:,1,:) = A_mat_save_one;
+A_mat_save(:,:,8,:) = A_mat_save_Nf;
+A_mat_save(:,:,2,:) = A_mat_save_two;
+A_mat_save(:,:,3,:) = A_mat_save_three;
+A_mat_save(:,:,4,:) = A_mat_save_four;
+A_mat_save(:,:,5,:) = A_mat_save_five;
+A_mat_save(:,:,6,:) = A_mat_save_six;
+A_mat_save(:,:,7,:) = A_mat_save_seven;
+for dis1_i = 1:DIS_NUM
+	for dis2_i = 1:DIS_NUM
+        for gg = 1:1:8
+            A_mat_gpu((((dis1_i - 1) * 8) + gg),(((dis2_i - 1) * 8) + 1) : (((dis2_i - 1) * 8) + 8)) = A_mat_save(dis1_i, dis2_i,gg,:);
+        end
+    end
+end
+toc
+% GPU_Amat = gpuArray(single(A_mat_save));
+%%%%%%%%%%%%%%%%%%% parrallel cpu compute %%%%%%%%%%%%%%%%%%%%%
+tic
+parfor dis1_i = 1:DIS_NUM
+	for dis2_i = 1:DIS_NUM
+        [V,D] = eig(squeeze(A_mat_save(dis1_i,dis2_i,:,:))); 
+        x_rec_snr = Y_real.'; % using receive data with noise
+        x_est = pinv(V)*x_rec_snr;% using data by time sequence and with noise
+        x_est1 = abs(x_est)./norm(x_est);	
+        [diag_D,ind] = sort(abs(diag(D)-1));
+        x_est1_sort = x_est1(ind);
+        x_est1_del = x_est1_sort(K+1:end);
+        piquancy_func(dis1_i,dis2_i) = 1/sum(x_est1_del.^2);
 	end
 end 
 toc
-save A_mat_source A_mat_save;
+%%%%%%%%%%%%%%%%%%% parrallel gpu compute %%%%%%%%%%%%%%%%%%%%%
+GPU_Amat = gpuArray(single(A_mat_gpu));
+tic
+for dis1_i = 1:DIS_NUM
+	for dis2_i = 1:DIS_NUM
+        [V,D] = eig(GPU_Amat(((dis1_i-1)*8)+1 : ((dis1_i-1)*8)+8,((dis2_i-1)*8)+1 : ((dis2_i-1)*8)+8)); 
+        x_rec_snr = Y_real.'; % using receive data with noise
+        x_est = pinv(V)*x_rec_snr;% using data by time sequence and with noise
+        x_est1 = abs(x_est)./norm(x_est);	
+        [diag_D,ind] = sort(abs(diag(D)-1));
+        x_est1_sort = x_est1(ind);
+        x_est1_del = x_est1_sort(K+1:end);
+        piquancy_func(dis1_i,dis2_i) = 1/sum(x_est1_del.^2);
+	end
+end 
+toc
+% save A_mat_source A_mat_save;
 dis1_paper = distance_min:distance_resol:distance_max - 1;
 dis2_paper = distance_min:distance_resol:distance_max - 1;
 dis_plot = dis1_paper(1:length(dis1_paper));

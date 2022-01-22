@@ -189,11 +189,11 @@ Y_real = Y_real';
 % construct adjacency matrix A, A is depend on doa angle theta1 and theta2
 b1 = zeros(Nf,1);
 b2 = zeros(Nf,1);
-A_mat = zeros(Nf,Nf);
-A_mat_save = zeros(DIS_NUM,DIS_NUM,DIS_NUM,Nf,Nf);
-% load A_mat3_source.mat;
+% A_mat = zeros(Nf,Nf);
+% A_mat_save = zeros(DIS_NUM,DIS_NUM,DIS_NUM,Nf,Nf);
+load A_mat3_source.mat;
 tic
-for dis1_i = 1:DIS_NUM
+parfor dis1_i = 1:DIS_NUM
 	dis1 = distance_min + (dis1_i - 1) * distance_resol;
 	% theta1 = 45;
 	b1 = exp(-1j*2*pi*(nn-1)*delta_fre*2*dis1/c0);
@@ -205,59 +205,59 @@ for dis1_i = 1:DIS_NUM
             dis3 = distance_min + (dis3_i - 1) * distance_resol;
             % theta2 = 17;
             b3 = exp(-1j*2*pi*(nn-1)*delta_fre*2*dis3/c0);
-            if(dis1 == dis2) && (dis2 == dis3) % if two doa_angle is same, coeff_mat is irreversible
-                piquancy_func(dis1_i,dis2_i,dis3_i) = 0;
-            else
-                for ii=1:Nf
-                    if(ii==1)
-                        coeff_mat = [b1(ii+1:end);b2(ii+1:end);b3(ii+1:end)];
-                        const_vec = [b1(ii);b2(ii);b3(ii)];
-                        solution_vec = pinv(coeff_mat) * const_vec;
-                        A_mat(ii,2:Nf) = solution_vec;
-                    elseif(ii==Nf)
-                        coeff_mat = [b1(1:Nf-1);b2(1:Nf-1);b3(1:Nf-1)];
-                        const_vec = [b1(ii);b2(ii);b3(ii)];
-                        solution_vec = pinv(coeff_mat) * const_vec;
-                        A_mat(ii,1:Nf-1) = solution_vec;
-                    else
-                        coeff_mat = [b1(1:ii-1),b1(ii+1:end);b2(1:ii-1),b2(ii+1:end);b3(1:ii-1),b3(ii+1:end)];
-                        const_vec = [b1(ii);b2(ii);b3(ii)];
-                        solution_vec = pinv(coeff_mat) * const_vec;
-                        A_mat(ii,1:ii-1) = solution_vec(1:ii-1);
-                        A_mat(ii,ii+1:Nf) = solution_vec(ii:Nf-1);
-                    end % end of if ii
-                end % end of for ii
-                A_mat_save(dis1_i, dis2_i, dis3_i,:,:) = A_mat;
+%             if(dis1 == dis2) && (dis2 == dis3) % if two doa_angle is same, coeff_mat is irreversible
+%                 piquancy_func(dis1_i,dis2_i,dis3_i) = 0;
+%             else
+%                 for ii=1:Nf
+%                     if(ii==1)
+%                         coeff_mat = [b1(ii+1:end);b2(ii+1:end);b3(ii+1:end)];
+%                         const_vec = [b1(ii);b2(ii);b3(ii)];
+%                         solution_vec = pinv(coeff_mat) * const_vec;
+%                         A_mat(ii,2:Nf) = solution_vec;
+%                     elseif(ii==Nf)
+%                         coeff_mat = [b1(1:Nf-1);b2(1:Nf-1);b3(1:Nf-1)];
+%                         const_vec = [b1(ii);b2(ii);b3(ii)];
+%                         solution_vec = pinv(coeff_mat) * const_vec;
+%                         A_mat(ii,1:Nf-1) = solution_vec;
+%                     else
+%                         coeff_mat = [b1(1:ii-1),b1(ii+1:end);b2(1:ii-1),b2(ii+1:end);b3(1:ii-1),b3(ii+1:end)];
+%                         const_vec = [b1(ii);b2(ii);b3(ii)];
+%                         solution_vec = pinv(coeff_mat) * const_vec;
+%                         A_mat(ii,1:ii-1) = solution_vec(1:ii-1);
+%                         A_mat(ii,ii+1:Nf) = solution_vec(ii:Nf-1);
+%                     end % end of if ii
+%                 end % end of for ii
+%                 A_mat_save(dis1_i, dis2_i, dis3_i,:,:) = A_mat;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%                 [V,D] = eig(squeeze(A_mat_save(dis1_i,dis2_i,dis3_i,:,:)));
-% 
-%                 x_rec_noiseless = Y.';% using receive data without noise  
-%                 x_rec_snr = Y_real.'; % using receive data with noise
-% 
-%                 % x_est = pinv(V)*x_rec;% using data by MF
-%                 % x_est = pinv(V)*x_rec_noiseless;% using data by time sequence and without noise
-%                 x_est = pinv(V)*x_rec_snr;% using data by time sequence and with noise
-% 
-%                 % [mmax,ind] = max(diag(D));
-%                 x_est1 = abs(x_est)./norm(x_est);	
-% 
-%                 % [mmax,ind] = max(x_est1);
-%                 % x_est1(ind)=[];
-%                 % [mmax,ind] = max(x_est1);
-%                 % x_est1(ind)=[];% should note that for multiple targets need delete K elements in vector x_est, here do twice delete operations
-% 
-%                 [diag_D,ind] = sort(abs(diag(D)-1));
-%                 x_est1_sort = x_est1(ind);
-%                 x_est1_del = x_est1_sort(K+1:end);
-% 
-%                 piquancy_func(dis1_i,dis2_i,dis3_i) = 1/sum(x_est1_del.^3);
+                [V,D] = eig(squeeze(A_mat_save(dis1_i,dis2_i,dis3_i,:,:)));
+
+                x_rec_noiseless = Y.';% using receive data without noise  
+                x_rec_snr = Y_real.'; % using receive data with noise
+
+                % x_est = pinv(V)*x_rec;% using data by MF
+                % x_est = pinv(V)*x_rec_noiseless;% using data by time sequence and without noise
+                x_est = pinv(V)*x_rec_snr;% using data by time sequence and with noise
+
+                % [mmax,ind] = max(diag(D));
+                x_est1 = abs(x_est)./norm(x_est);	
+
+                % [mmax,ind] = max(x_est1);
+                % x_est1(ind)=[];
+                % [mmax,ind] = max(x_est1);
+                % x_est1(ind)=[];% should note that for multiple targets need delete K elements in vector x_est, here do twice delete operations
+
+                [diag_D,ind] = sort(abs(diag(D)-1));
+                x_est1_sort = x_est1(ind);
+                x_est1_del = x_est1_sort(K+1:end);
+
+                piquancy_func(dis1_i,dis2_i,dis3_i) = 1/sum(x_est1_del.^3);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            end % end of if theta1==theta2
+%             end % end of if theta1==theta2
         end
 	end
 end 
 toc
-save A_mat3_source A_mat_save;
+% save A_mat3_source A_mat_save;
 % save piquancy_func.mat
 % load piquancy_func_r3_200plot.mat
 [Pmax,index]=max(piquancy_func(:));
